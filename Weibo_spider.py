@@ -1,38 +1,74 @@
-# -*- coding=UTF-8 -*-
-# !usr/bin/env python
+# -*- coding: utf-8 -*-
+# @Author    : Eurkon
+# @Date      : 2021/6/5 10:16
 
-import os
+import json
 import time
 import requests
-from lxml import etree
+import os
+from http.server import BaseHTTPRequestHandler
 
-url = "https://s.weibo.com/top/summary?cate=realtimehot"
-headers = {
-'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
-'Accept-Encoding':'gzip, deflate, br',
-'Accept-Language':'zh-CN,zh;q=0.9,en;q=0.8',
-'Connection': 'keep-alive',
-'Cookie': 'SINAGLOBAL=9398350833310.666.1649481570597; _s_tentry=-; Apache=2549540165825.8833.1649481988850; ULV=1649481988869:2:2:2:2549540165825.8833.1649481988850:1649481570609; SUB=_2A25PVWkRDeRhGeFN6lsV9SbKzDSIHXVsI93ZrDV8PUNbmtAKLVP5kW9NQE8PsDvLynJ1C1dbzqN2yAin1gIzVmJQ; SUBP=0033WrSXqPxfM725Ws9jqgMF55529P9D9W5.FUjIG35j8rSOIXTTDCBo5JpX5KzhUgL.FoM0eK.XSKncS0n2dJLoIEXLxKBLB.zL1K.LxK-LBKzL1heLxKMLB-BL1K2LxKqLBKzLBKqLxK-LBonL1hnt; ALF=1681018049; SSOLoginState=1649482049',
-'Host': 'rm.api.weibo.com',
-'Referer': 'https://s.weibo.com/',
-'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.75 Safari/537.36'
-}
 
-r = requests.get(url, headers=headers)
-print(r.status_code)
+def get_data():
+    """微博热搜
 
-html_xpath = etree.HTML(r.text)
-data = html_xpath.xpath('//*[@id="pl_top_realtimehot"]/table/tbody/tr/td[2]')
-num = -1
+    Args:
+        params (dict): {}
 
-# # 解决存储路径
-# time_path = time.strftime('%Y{y}%m{m}%d{d}',time.localtime()).format(y='年', m='月', d='日')
-# time_name = time.strftime('%Y{y}%m{m}%d{d}%H{h}',time.localtime()).format(y='年', m='月', d='日',h='点')
-# root = "./" + time_path + "/"
-# path = root + time_name + '.md'
-# if not os.path.exists(root):
-#     os.mkdir(root)
+    Returns:
+        json: {title: 标题, url: 地址, num: 热度数值, hot: 热搜等级}
+    """
 
+    data = []
+    response = requests.get("https://weibo.com/ajax/side/hotSearch")
+    data_json = response.json()['data']['realtime']
+    jyzy = {
+        '电影': '影',
+        '剧集': '剧',
+        '综艺': '综',
+        '音乐': '音'
+    }
+
+    for data_item in data_json:
+        hot = ''
+        # 如果是广告，则不添加
+        if 'is_ad' in data_item:
+            continue
+        if 'flag_desc' in data_item:
+            hot = jyzy.get(data_item['flag_desc'])
+        if 'is_boom' in data_item:
+            hot = '爆'
+        if 'is_hot' in data_item:
+            hot = '热'
+        if 'is_fei' in data_item:
+            hot = '沸'
+        if 'is_new' in data_item:
+            hot = '新'
+
+        dic = {
+            'title': data_item['note'],
+            'url': 'https://s.weibo.com/weibo?q=%23' + data_item['word'] + '%23',
+            'num': data_item['num'],
+            'hot': hot
+        }
+        data.append(dic)
+
+    return data
+
+
+# class handler(BaseHTTPRequestHandler):
+#     def do_GET(self):
+#         data = get_data()
+#         self.send_response(200)
+#         self.send_header('Access-Control-Allow-Origin', '*')
+#         self.send_header('Cache-Control', 'no-cache')
+#         self.send_header('Content-type', 'application/json')
+#         self.end_headers()
+#         self.wfile.write(json.dumps(data).encode('utf-8'))
+#         return
+
+
+data = get_data()
 
 # 解决存储路径
 time_path = time.strftime('%Y{y}%m{m}%d{d}', time.localtime()).format(y='年', m='月', d='日')
@@ -48,29 +84,30 @@ if not os.path.exists(all_path):
 # 最终文件存储位置
 root = all_path + "/"
 path = root + time_name + '.md'
-
+num = 0
+time_name_second = time_name = time.strftime('%Y{y}%m{m}%d{d}%H{h}%M{M}%S{s}', time.localtime()).format(y='年', m='月', d='日', h='点', M = '分',s = '秒')
 print(path)
 # 文件头部信息
 with open(path, 'a') as f:
-    f.write('{} {}\n\n'.format('# ', time_name + '数据'))
+    f.write('{} {}\n\n'.format('# ', time_name_second + '数据'))
 f.close()
 
 for tr in (data):
-    title = tr.xpath('./a/text()')
-    hot_score = tr.xpath('./span/text()')
-
+    title = tr['title']
+    hot_score = tr['num']
+    hot_level = tr['hot']
+    url = tr['url']
     num += 1
 
-    # 过滤第 0 条
-    if num == 0:
-        pass
-    else:
-        with open(path, 'a') as f:
 
-            f.write('{} {}、{}\n\n'.format('###', num, title[0]))
-            f.write('{} {}\n\n'.format('微博当时热度为：', hot_score[0]))
 
-        f.close()
+    with open(path, 'a') as f:
 
-        print(num, title[0], '微博此时的热度为：', hot_score[0])
+        f.write('{} {}、{}\n\n'.format('###', num, title))
+        f.write('{} {}\n\n'.format('微博当时热度数值为：', hot_score))
+        f.write('{} {}\n\n'.format('微博当时热度等级为：', hot_level))
+        f.write('[{}]({})\n\n'.format('热搜跳转链接', url))
+
+    f.close()
+
 
