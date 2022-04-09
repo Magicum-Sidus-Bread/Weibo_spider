@@ -6,7 +6,8 @@ import json
 import time
 import requests
 import os
-from http.server import BaseHTTPRequestHandler
+os.environ['REQUESTS_CA_BUNDLE'] =  os.path.join(os.path.dirname(sys.argv[0]), 'cacert.pem')
+# from http.server import BaseHTTPRequestHandler
 
 
 def get_data():
